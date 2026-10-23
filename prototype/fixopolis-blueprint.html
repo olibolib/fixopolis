@@ -545,7 +545,7 @@ const RESULTS_REPO = 'olibolib/fixopolis';
 
 // Test tasks — wording must match the submitted task sheet (what to do, never how).
 const TASKS = [
-  {id:'T1', minTaps:6,
+  {id:'T1', minTaps:7,   // sign in + 6 taps to report
    prompt:'You have noticed a pothole on the road outside your home. Report it to the council.',
    check: (evt) => (evt.type === 'report:added' && evt.report.category === 'ROAD') ? {completed:true} : null},
   {id:'T2', minTaps:2,
@@ -1204,12 +1204,12 @@ class TestController {
   showTask(){
     const a = this.app, n = this.taskIndex + 1; this.state = 'PROMPT';
     a.overlay.show(`<div class="eyebrow">Task ${n} of ${TASKS.length}</div><h2>${n === 1 ? 'Your first task' : 'Next task'}</h2>
-      <div class="task">${esc(this.task.prompt)}</div><p>Tap Begin when you're ready. You'll start on the Home screen.</p>
+      <div class="task">${esc(this.task.prompt)}</div><p>Tap Begin when you're ready. You'll start on the sign-in screen.</p>
       <div class="acts"><button data-tact="begin">Begin</button></div>`, {begin: () => this.beginTask()});
   }
   beginTask(){
     const a = this.app; a.overlay.hide(); a.dialog.close();
-    if (this.taskIndex === 0) { a.draft = null; a.nav.reset(new HomeScreen(a)); }   // later tasks carry on from the current screen
+    if (this.taskIndex === 0) { a.draft = null; a.session.signOut(); a.nav.reset(new LoginScreen(a)); }   // Task 1 starts at sign-in; later tasks carry on from the current screen
     a.logger.begin(this.task, this.pid, this.runStarted);
     this.state = 'TASK';
     this.pill.innerHTML = `${icon('info',16,'#fff',2.2)}Task ${this.taskIndex + 1} of ${TASKS.length}`; this.pill.classList.add('show');
