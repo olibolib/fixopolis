@@ -221,6 +221,17 @@
   #pill.show{visibility:visible}
   #overlay{position:fixed;inset:0;background:rgba(20,22,28,.55);display:none;align-items:center;justify-content:center;z-index:100;padding:20px}
   #overlay.show{display:flex}
+  #overlay.sheet{background:rgba(20,22,28,.22)}
+  #overlay.sheet.show{display:block}
+  #overlay.sheet .modal{position:fixed;padding:16px 18px 14px;max-width:none;max-height:none;box-shadow:0 12px 36px rgba(0,0,0,.28)}
+  #overlay.sheet h2{font-size:21px;margin:8px 0 6px}
+  #overlay.sheet p{font-size:14px;margin:0 0 10px}
+  #overlay.sheet .task{font-size:15px;padding:10px 12px;margin:6px 0 10px}
+  #overlay.sheet .acts button{width:100%}
+  .modal .pbar{display:flex;gap:6px;margin:8px 0 2px}
+  .modal .pbar i{flex:1;height:5px;border-radius:3px;background:#e2e6ec}
+  .modal .pbar i.on{background:var(--accent)}
+  .modal .pbar i.skip{background:#b9c0ca}
   .modal{background:#fff;border-radius:20px;max-width:560px;width:100%;max-height:92vh;overflow:auto;padding:26px 28px;box-shadow:0 20px 60px rgba(0,0,0,.3)}
   .modal .eyebrow{font-size:13px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--accent)}
   .modal h2{margin:6px 0 10px;font-size:24px}
@@ -395,6 +406,9 @@
 .sus .scale button{border-radius:0}
 #pill{border-radius:0;font-family:'IBM Plex Mono',monospace;background:var(--bp)}
 
+#overlay.sheet .modal{border-radius:0}
+.modal .pbar i{border-radius:0}
+
 </style>
 </head>
 <body>
@@ -528,7 +542,7 @@ const SEED = [
 const TASKS = [
   {id:'T1', minTaps:6,
    prompt:'You have noticed a pothole on the road outside your home. Report it to the council.',
-   check: (evt) => evt.type === 'report:added' ? {completed: evt.report.category === 'ROAD' && !!evt.report.location} : null},
+   check: (evt) => (evt.type === 'report:added' && evt.report.category === 'ROAD') ? {completed:true} : null},
   {id:'T2', minTaps:2,
    prompt:'A few weeks ago you reported a broken footpath on Hill St. Find out what is happening with it.',
    check: (evt) => (evt.type === 'screen:shown' && evt.screen instanceof ReportDetailsScreen && evt.screen.reportId === 'R-102') ? {completed:true} : null},
@@ -1152,8 +1166,15 @@ class ResultsService {
 
 class TestOverlay {
   constructor(el){ this.el = el; this.handlers = {}; el.addEventListener('click', e => { const b = e.target.closest('[data-tact]'); if (b && this.handlers[b.dataset.tact]) this.handlers[b.dataset.tact](b); }); }
-  show(html, handlers){ this.handlers = handlers || {}; this.el.innerHTML = `<div class="modal" role="dialog" aria-modal="true">${html}</div>`; this.el.classList.add('show'); const f = $('.acts button:last-child', this.el); f && f.focus({preventScroll:true}); }
-  hide(){ this.el.classList.remove('show'); this.el.innerHTML = ''; this.handlers = {}; }
+  show(html, handlers, opts={}){
+    this.handlers = handlers || {}; this.el.innerHTML = `<div class="modal" role="dialog" aria-modal="true">${html}</div>`;
+    this.el.classList.toggle('sheet', !!opts.sheet); this.el.classList.add('show');
+    if (opts.sheet) {   // sit over the bottom of the phone so the finished screen stays visible
+      const r = $('#phone').getBoundingClientRect(), m = $('.modal', this.el), inset = r.width * 0.06;
+      m.style.left = (r.left + inset) + 'px'; m.style.width = (r.width - 2 * inset) + 'px'; m.style.bottom = (innerHeight - r.bottom + r.height * 0.045) + 'px';
+    }
+    const f = $('.acts button:last-child', this.el); f && f.focus({preventScroll:true}); }
+  hide(){ this.el.classList.remove('show', 'sheet'); this.el.innerHTML = ''; this.handlers = {}; }
 }
 
 class TestController {
@@ -1163,7 +1184,7 @@ class TestController {
   async start(){
     const a = this.app; this.state = 'STARTING'; a.nav.current.refresh && a.nav.current.refresh();
     const id = await a.results.prepare();
-    this.pid = 'P' + id; this.runStarted = new Date().toISOString(); this.taskIndex = 0;
+    this.pid = 'P' + id; this.runStarted = new Date().toISOString(); this.taskIndex = 0; this.outcomes = [];
     a.store.reset(); a.session.signIn('Face ID'); a.draft = null;
     this.state = 'INTRO';
     const warn = a.results.fileReady ? '' : `<div class="warn">No results folder connected, so results are kept in this browser only. Use “Download results” on the start screen afterwards.</div>`;
@@ -1182,8 +1203,8 @@ class TestController {
       <div class="acts"><button data-tact="begin">Begin</button></div>`, {begin: () => this.beginTask()});
   }
   beginTask(){
-    const a = this.app; a.overlay.hide(); a.dialog.close(); a.draft = null;
-    a.nav.reset(new HomeScreen(a));
+    const a = this.app; a.overlay.hide(); a.dialog.close();
+    if (this.taskIndex === 0) { a.draft = null; a.nav.reset(new HomeScreen(a)); }   // later tasks carry on from the current screen
     a.logger.begin(this.task, this.pid, this.runStarted);
     this.state = 'TASK';
     this.pill.innerHTML = `${icon('info',16,'#fff',2.2)}Task ${this.taskIndex + 1} of ${TASKS.length}`; this.pill.classList.add('show');
@@ -1201,15 +1222,20 @@ class TestController {
     const res = a.logger.end(completed, skipped);
     const ok = await a.results.append('tasks', res.toRow());
     if (!ok && a.results.fileReady) a.toast.show('Could not write to the results file (is it open in Excel?). Saved in browser backup.');
+    this.outcomes.push(skipped ? 'skipped' : 'done');
     this.taskIndex++;
-    setTimeout(() => {
-      if (this.taskIndex < TASKS.length) {
-        const n = this.taskIndex + 1; this.state = 'PROMPT';
-        a.overlay.show(`<div class="eyebrow">Task ${n - 1} ${skipped ? 'skipped' : 'done'}</div><h2>${skipped ? 'No problem, let\'s move on' : 'Done! Next task'}</h2>
-          <div class="eyebrow" style="margin-top:10px">Task ${n} of ${TASKS.length}</div><div class="task">${esc(this.task.prompt)}</div>
-          <div class="acts"><button data-tact="begin">Begin</button></div>`, {begin: () => this.beginTask()});
-      } else this.showSurvey();
-    }, skipped ? 0 : 900);
+    setTimeout(() => this.showProgress(skipped), skipped ? 0 : 900);
+  }
+  showProgress(skipped){
+    const a = this.app, done = this.taskIndex, last = done >= TASKS.length; this.state = last ? 'SURVEY_NEXT' : 'PROMPT';
+    const bar = TASKS.map((t, i) => `<i class="${i < done ? (this.outcomes[i] === 'skipped' ? 'skip' : 'on') : ''}"></i>`).join('');
+    const title = last ? 'All tasks done' : `Task ${done} ${skipped ? 'skipped' : 'complete'}`;
+    const body = last
+      ? `<p>Nice work. Last of all, a short questionnaire about the app.</p>`
+      : `<div class="eyebrow">Next · Task ${done + 1} of ${TASKS.length}</div><div class="task">${esc(TASKS[done].prompt)}</div><p class="sub">Carry on from this screen when you're ready.</p>`;
+    a.overlay.show(`<div class="eyebrow">Progress · Participant ${this.pid}</div><div class="pbar">${bar}</div><h2>${title}</h2>${body}
+      <div class="acts"><button data-tact="go">${last ? 'Continue to questionnaire' : 'Continue'}</button></div>`,
+      {go: () => last ? this.showSurvey() : this.beginTask()}, {sheet:true});
   }
   showSurvey(){
     const a = this.app; this.state = 'SURVEY'; this.survey = new PostTestSurvey(this.pid);
