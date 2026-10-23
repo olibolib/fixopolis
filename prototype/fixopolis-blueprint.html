@@ -241,6 +241,7 @@
   .modal ol li{margin-bottom:8px}
   .modal .acts{display:flex;gap:10px;justify-content:flex-end;margin-top:6px}
   .modal .acts button{border:0;border-radius:12px;padding:12px 22px;font-size:16px;font-weight:600;cursor:pointer;background:var(--accent);color:#fff}
+  .modal .acts .ghbtn{border-radius:12px;padding:12px 22px;font-size:16px;font-weight:600;background:#1f2328;color:#fff;text-decoration:none;display:inline-flex;align-items:center}
   .modal .acts button.plain{background:#f0f0f3;color:#3a3a3c}
   .modal .warn{background:#fdf1e0;color:#6b3d00;border-radius:10px;padding:10px 12px;font-size:14px;margin-bottom:14px}
   .sus{border-top:1px solid var(--line);padding:12px 0}
@@ -408,6 +409,7 @@
 
 #overlay.sheet .modal{border-radius:0}
 .modal .pbar i{border-radius:0}
+.modal .acts .ghbtn{border-radius:0}
 
 </style>
 </head>
@@ -537,6 +539,9 @@ const SEED = [
    location:{street:'Elm Park', suburb:'Elmwood', mapX:40, mapY:172},
    updates:[{status:'RECEIVED',date:'2026-10-15'}], bumpedBy:others(2)},
 ];
+
+// GitHub repo that "Send results to GitHub" opens a new issue in (owner/name).
+const RESULTS_REPO = 'olibolib/fixopolis';
 
 // Test tasks — wording must match the submitted task sheet (what to do, never how).
 const TASKS = [
@@ -1184,7 +1189,7 @@ class TestController {
   async start(){
     const a = this.app; this.state = 'STARTING'; a.nav.current.refresh && a.nav.current.refresh();
     const id = await a.results.prepare();
-    this.pid = 'P' + id; this.runStarted = new Date().toISOString(); this.taskIndex = 0; this.outcomes = [];
+    this.pid = 'P' + id; this.runStarted = new Date().toISOString(); this.taskIndex = 0; this.outcomes = []; this.taskRows = []; this.surveyRow = null;
     a.store.reset(); a.session.signIn('Face ID'); a.draft = null;
     this.state = 'INTRO';
     const warn = a.results.fileReady ? '' : `<div class="warn">No results folder connected, so results are kept in this browser only. Use “Download results” on the start screen afterwards.</div>`;
@@ -1220,7 +1225,8 @@ class TestController {
   async endTask(completed, skipped){
     const a = this.app; this.state = 'SAVING'; this.pill.classList.remove('show');
     const res = a.logger.end(completed, skipped);
-    const ok = await a.results.append('tasks', res.toRow());
+    const row = res.toRow(); this.taskRows.push(row);
+    const ok = await a.results.append('tasks', row);
     if (!ok && a.results.fileReady) a.toast.show('Could not write to the results file (is it open in Excel?). Saved in browser backup.');
     this.outcomes.push(skipped ? 'skipped' : 'done');
     this.taskIndex++;
@@ -1251,7 +1257,8 @@ class TestController {
         {ans: (b) => { this.survey.comment = $('#susComment').value; this.survey.set(+b.dataset.i, +b.dataset.v); const row = b.closest('.sus'); row.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); row.classList.remove('miss'); },
          submit: async () => { this.survey.comment = $('#susComment').value;
            if (this.survey.missing().length) { const st = a.overlay.el.querySelector('.modal').scrollTop; render(true); a.overlay.el.querySelector('.modal').scrollTop = st; return; }
-           const ok = await a.results.append('survey', this.survey.toRow());
+           this.surveyRow = this.survey.toRow();
+           const ok = await a.results.append('survey', this.surveyRow);
            this.showThanks(ok); }});
     };
     render(false);
@@ -1260,7 +1267,31 @@ class TestController {
     const a = this.app; this.state = 'DONE';
     a.overlay.show(`<div class="eyebrow">Finished</div><h2>Thank you!</h2><p>That's everything. Your answers have been saved as participant <b>${this.pid}</b>.</p>
       ${ok ? `<p class="sub">Saved to ${esc(ResultsWriter.FILES.tasks)} and ${esc(ResultsWriter.FILES.survey)} in “${esc(a.results.folderName)}”.</p>` : `<div class="warn">Saved in this browser only. Use “Download results” on the start screen to get the CSV files.</div>`}
-      <div class="acts"><button data-tact="done">Done</button></div>`, {done: () => this.finish()});
+      <p class="sub">To add these results to the team's GitHub, press <b>Send results to GitHub</b>, then <b>Submit new issue</b> on the page that opens (you need to be signed in to GitHub).</p>
+      <div class="acts"><button data-tact="done" class="plain">Done</button><a class="ghbtn" href="${esc(this.githubIssueUrl())}" target="_blank" rel="noopener">Send results to GitHub</a></div>`, {done: () => this.finish()});
+  }
+  /* Builds a "new issue" link with this participant's results filled in */
+  githubIssueUrl(){
+    const a = this.app, rows = this.taskRows, sv = this.surveyRow;
+    const yn = v => (+v ? 'yes' : 'no');
+    const tH = ResultsWriter.HEADERS.tasks, sH = ResultsWriter.HEADERS.survey;
+    const csvT = [tH.join(','), ...rows.map(r => ResultsWriter.line('tasks', r).trim())].join('\n');
+    const csvS = sv ? [sH.join(','), ResultsWriter.line('survey', sv).trim()].join('\n') : '';
+    const body = [
+      `## Usability test results: ${this.pid}`, '',
+      `**Prototype:** Fixopolis (${a.theme.name})  `, `**Run started:** ${this.runStarted}`, '',
+      '### Tasks', '',
+      '| Task | Completed | Skipped | Time (s) | Taps | Wrong taps | Back | Min taps | Efficiency |', '|---|---|---|---|---|---|---|---|---|',
+      ...rows.map(r => `| ${r.task} | ${yn(r.completed)} | ${yn(r.skipped)} | ${r.time_s} | ${r.taps} | ${r.dead_taps} | ${r.backs} | ${r.min_taps} | ${r.efficiency || '-'} |`), '',
+      '### Questionnaire (SUS)', '',
+      sv ? `**SUS score:** ${sv.sus_score} / 100` : '_Not completed_', '',
+      ...(sv ? ['| ' + SUS_ITEMS.map((_, i) => 'Q' + (i + 1)).join(' | ') + ' |', '|' + SUS_ITEMS.map(() => '---|').join(''), '| ' + SUS_ITEMS.map((_, i) => sv['sus_q' + (i + 1)]).join(' | ') + ' |', '',
+               `**Comment:** ${sv.comment ? sv.comment.replace(/\n/g, ' ') : '_none_'}`, ''] : []),
+      '<details><summary>CSV rows (for combining results)</summary>', '',
+      '```csv', '# results_tasks.csv', csvT, ...(csvS ? ['', '# results_survey.csv', csvS] : []), '```', '</details>'
+    ].join('\n');
+    const title = `[Test results] ${this.pid}, ${new Date(this.runStarted).toLocaleString('en-AU', {dateStyle:'medium', timeStyle:'short'})}`;
+    return `https://github.com/${RESULTS_REPO}/issues/new?title=${encodeURIComponent(title)}&body=${encodeURIComponent(body)}`;
   }
   finish(){
     const a = this.app; a.logger.end(false, false); this.state = 'IDLE'; this.pill.classList.remove('show'); a.overlay.hide();

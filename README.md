@@ -20,7 +20,17 @@ GitHub's own file preview turns the PDF links off. Either download the file and 
 
 ## Usability test mode (interactive prototype)
 
-On the start screen, switch on **Test mode**. The prototype runs the three tasks in order, records time, taps, wrong taps and back presses, then shows the SUS questionnaire. In Chrome or Edge you choose a results folder once, and `results_tasks.csv` and `results_survey.csv` fill in automatically with an incrementing participant ID.
+On the start screen, switch on **Test mode**. The prototype runs the three tasks in order. After each task, a progress panel appears over the finished screen, and Continue picks up from there. It records time, taps, wrong taps and back presses for each task, then shows the SUS questionnaire. In Chrome or Edge you choose a results folder once, and `results_tasks.csv` and `results_survey.csv` fill in automatically with an incrementing participant ID.
+
+### Collecting results on GitHub
+
+At the end of each session, press **Send results to GitHub** on the thank-you screen, then **Submit new issue** on the page that opens. You need to be signed in to GitHub with access to this repo. Each participant becomes one issue titled `[Test results] P1, …`, containing:
+
+- a table of task results
+- the SUS answers and score, and the participant's comment
+- the raw CSV rows in a collapsible block, ready to paste into one combined spreadsheet
+
+Participant numbers count up on each testing laptop separately, so if you test on more than one laptop, use the date and time in the issue title to tell sessions apart. The repo is public, so results posted here are visible to anyone. They contain no names.
 
 ## Files
 
