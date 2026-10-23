@@ -7,8 +7,7 @@ Residents report problems such as potholes, dumped rubbish or broken streetlight
 ## Try it
 
 - **Interactive prototype:** https://olibolib.github.io/fixopolis/ (best in Chrome or Edge on a laptop)
-- **Clickable PDF prototype (demonstration):** [Download](https://github.com/olibolib/fixopolis/raw/main/pdf/fixopolis-blueprint-demonstration.pdf) · [Open in browser](https://olibolib.github.io/fixopolis/pdf/fixopolis-blueprint-demonstration.pdf)
-- **Clickable PDF prototype (user testing):** [Download](https://github.com/olibolib/fixopolis/raw/main/pdf/fixopolis-blueprint-user-testing.pdf) · [Open in browser](https://olibolib.github.io/fixopolis/pdf/fixopolis-blueprint-user-testing.pdf). This version has every button working and progress pages between tasks.
+- **Clickable PDF prototype:** [Download](https://github.com/olibolib/fixopolis/raw/main/pdf/fixopolis-blueprint-user-testing.pdf) · [Open in browser](https://olibolib.github.io/fixopolis/pdf/fixopolis-blueprint-user-testing.pdf). Every button works, with progress pages between tasks.
 - **Design document:** [Download](https://github.com/olibolib/fixopolis/raw/main/docs/fixopolis-design-document.pdf) · [Open in browser](https://olibolib.github.io/fixopolis/docs/fixopolis-design-document.pdf)
 
 GitHub's own file preview turns the PDF links off. Either download the file and open it in Adobe Acrobat or the Chrome/Edge PDF viewer, or use "Open in browser" (this needs GitHub Pages switched on).
@@ -29,7 +28,7 @@ On the start screen, switch on **Test mode**. The prototype runs the three tasks
 |---|---|
 | `index.html` | The interactive prototype, served by GitHub Pages |
 | `prototype/fixopolis-blueprint.html` | The same prototype, to download and open locally |
-| `pdf/` | Clickable PDF prototypes (download them to use the links) |
+| `pdf/` | Clickable PDF prototype (download it to use the links) |
 | `docs/` | Design document |
 
 All data in the prototype is fictional (Elmwood is not a real suburb).
